@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תוכנית ביצוע - WeRAI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F7F6F2; --surface: #FFFFFF; --border: #E4E2DA;
+    --text: #1A1A18; --muted: #7A7872; --radius: 10px;
+  }
+
+  body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1.5rem; }
+
+  header { margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .header-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .sync-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 4px 12px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+    transition: all 0.3s;
+  }
+  .sync-badge.connected { border-color: #C0DD97; background: #EAF3DE; color: #3B6D11; }
+  .sync-badge.syncing   { border-color: #FAC775; background: #FAEEDA; color: #854F0B; }
+  .sync-badge.error     { border-color: #F7C1C1; background: #FCEBEB; color: #A32D2D; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .sync-badge.connected .sync-dot { animation: pulse 2s infinite; }
+  .sync-badge.syncing .sync-dot   { animation: pulse 0.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .meta { font-size: 12px; color: var(--muted); }
+
+  .summary-bar { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .summary-pill {
+    font-size: 12px; padding: 5px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .summary-pill span { font-weight: 500; color: var(--text); }
+
+  .section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 1rem; overflow: hidden;
+    transition: box-shadow 0.15s;
+  }
+  .section:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+
+  .section-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; cursor: pointer;
+    border-bottom: 1px solid var(--border); user-select: none;
+  }
+  .section-header:hover { filter: brightness(0.97); }
+
+  .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .section-meta { flex: 1; }
+  .client-type { font-size: 11px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1px; }
+  .client-name { font-size: 15px; font-weight: 600; }
+  .section-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+
+  .progress-mini { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .progress-track { width: 60px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #3B6D11; border-radius: 2px; transition: width 0.4s; }
+
+  .toggle-icon { font-size: 11px; color: var(--muted); transition: transform 0.2s; }
+  .collapsed .toggle-icon { transform: rotate(-90deg); }
+  .collapsed .tasks-list, .collapsed .add-task-row { display: none; }
+
+  .tasks-list { padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 6px; }
+
+  .task {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 11px 14px; border: 1px solid var(--border);
+    border-radius: 8px; background: #FAFAF8;
+    transition: background 0.1s, border-color 0.1s, opacity 0.3s;
+  }
+  .task:hover { background: var(--surface); border-color: #C8C6BE; }
+  .task.done { opacity: 0.5; background: #F2F1EC; }
+  .task.done .task-title { text-decoration: line-through; color: var(--muted); }
+  .task.flash { background: #E6F1FB; border-color: #B5D4F4; transition: background 0.1s; }
+
+  .check-btn {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 1.5px solid #C0BEB8; background: transparent;
+    cursor: pointer; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: transparent;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .check-btn:hover { border-color: #3B6D11; background: #EAF3DE; color: #3B6D11; }
+  .task.done .check-btn { background: #3B6D11; border-color: #3B6D11; color: white; }
+
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 14px; font-weight: 500; line-height: 1.4; margin-bottom: 2px; }
+  .task-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .owner-col {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex-shrink: 0; width: 64px; gap: 3px;
+  }
+  .owner-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 500; flex-shrink: 0;
+    cursor: pointer; transition: opacity 0.15s; border: 1.5px solid;
+  }
+  .owner-avatar:hover { opacity: 0.75; }
+  .owner-avatar.empty { background: transparent; border: 1.5px dashed #C8C6BE; color: #C8C6BE; font-size: 15px; }
+  .owner-name { font-size: 10px; color: var(--muted); text-align: center; max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .status-select {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    cursor: pointer; font-family: 'Heebo', sans-serif; flex-shrink: 0;
+    appearance: none; -webkit-appearance: none; outline: none;
+  }
+  .status-todo   { background: #F2F1EC; color: var(--muted); border-color: var(--border); }
+  .status-next   { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
+  .status-inprog { background: #FAEEDA; color: #854F0B; border-color: #FAC775; }
+  .status-review { background: #EEEDFE; color: #3C3489; border-color: #CECBF6; }
+  .status-done   { background: #EAF3DE; color: #3B6D11; border-color: #C0DD97; }
+
+  .delete-btn {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid transparent; background: none;
+    cursor: pointer; color: #C0BEB8; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px; padding: 0;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+  }
+  .delete-btn:hover { color: #A32D2D; border-color: #F7C1C1; background: #FCEBEB; }
+
+  .add-task-row {
+    padding: 8px 12px 10px; display: flex; align-items: center;
+    border-top: 1px dashed var(--border);
+  }
+  .add-task-btn {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted); background: none;
+    border: none; cursor: pointer; padding: 5px 8px;
+    border-radius: 6px; font-family: 'Heebo', sans-serif;
+    transition: background 0.12s, color 0.12s;
+  }
+  .add-task-btn:hover { background: var(--bg); color: var(--text); }
+  .add-task-plus {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; line-height: 1; flex-shrink: 0;
+  }
+
+  .shira .section-header  { background: #EEEDFE; }
+  .shira .client-name     { color: #3C3489; }
+  .shira .color-dot       { background: #7F77DD; }
+  .shira .section-badge   { background: #CECBF6; color: #3C3489; }
+
+  .liora .section-header  { background: #E1F5EE; }
+  .liora .client-name     { color: #085041; }
+  .liora .color-dot       { background: #1D9E75; }
+  .liora .section-badge   { background: #9FE1CB; color: #085041; }
+
+  .werai .section-header  { background: #E6F1FB; }
+  .werai .client-name     { color: #0C447C; }
+  .werai .color-dot       { background: #378ADD; }
+  .werai .section-badge   { background: #B5D4F4; color: #0C447C; }
+
+  .workshop .section-header { background: #FAEEDA; }
+  .workshop .client-name    { color: #633806; }
+  .workshop .color-dot      { background: #EF9F27; }
+  .workshop .section-badge  { background: #FAC775; color: #633806; }
+
+  .yifat .section-header  { background: #FAECE7; }
+  .yifat .client-name     { color: #4A1B0C; }
+  .yifat .color-dot       { background: #D85A30; }
+  .yifat .section-badge   { background: #F5C4B3; color: #4A1B0C; }
+
+  .onex1 .section-header  { background: #EEEDFE; }
+  .onex1 .client-name     { color: #3C3489; }
+  .onex1 .color-dot       { background: #534AB7; }
+  .onex1 .section-badge   { background: #CECBF6; color: #3C3489; }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius);
+    border: 1px solid var(--border); padding: 1.5rem;
+    width: min(420px, 92vw); box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  }
+  .modal h2 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; margin-top: 10px; }
+  .modal input, .modal textarea, .modal select {
+    width: 100%; font-family: 'Heebo', sans-serif; font-size: 13px;
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text); outline: none; resize: none;
+    transition: border-color 0.15s;
+  }
+  .modal input:focus, .modal textarea:focus, .modal select:focus { border-color: #B0AEA8; }
+  .modal input::placeholder, .modal textarea::placeholder { color: #B0AEA8; }
+  .form-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+  .btn-save {
+    font-family: 'Heebo', sans-serif; font-size: 12px; font-weight: 500;
+    padding: 6px 16px; border-radius: 20px; border: none;
+    background: var(--text); color: var(--surface); cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-save:hover { opacity: 0.8; }
+  .btn-cancel {
+    font-family: 'Heebo', sans-serif; font-size: 12px; padding: 6px 14px;
+    border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); cursor: pointer;
+  }
+  .btn-cancel:hover { background: var(--bg); }
+
+  .global-add-btn {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 6px 14px; border-radius: 20px;
+    cursor: pointer; font-family: 'Heebo', sans-serif; transition: background 0.12s;
+  }
+  .global-add-btn:hover { background: var(--bg); }
+
+  .footer { margin-top: 2rem; text-align: center; font-size: 12px; color: var(--muted); }
+
+  #loading {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; z-index: 200;
+    transition: opacity 0.4s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2.5px solid var(--border); border-top-color: #378ADD;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>מתחבר לענן...</p>
+</div>
+
+<div class="modal-overlay" id="global-modal">
+  <div class="modal">
+    <h2>הוספת משימה חדשה</h2>
+    <label>פרויקט</label>
+    <select id="modal-project"></select>
+    <label>כותרת המשימה</label>
+    <input type="text" id="modal-title" placeholder="מה צריך לעשות?" maxlength="120">
+    <label>תיאור (אופציונלי)</label>
+    <textarea id="modal-desc" rows="2" placeholder="פרטים נוספים..."></textarea>
+    <label>אחראי</label>
+    <select id="modal-owner">
+      <option value="">ללא אחראי</option>
+      <option value="אדיר">אדיר</option>
+      <option value="אילנה">אילנה</option>
+      <option value="מפתח אמיר">מפתח אמיר</option>
+    </select>
+    <label>סטטוס התחלתי</label>
+    <select id="modal-status">
+      <option value="todo">ממתין</option>
+      <option value="next" selected>הבא בתור</option>
+      <option value="inprog">בתהליך</option>
+      <option value="review">לבדיקה</option>
+      <option value="done">הושלם</option>
+    </select>
+    <div class="form-actions">
+      <button class="btn-save" onclick="saveFromModal()">הוסף משימה</button>
+      <button class="btn-cancel" onclick="closeModal()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <h1>תוכנית ביצוע</h1>
+  <div class="header-left">
+    <div class="sync-badge" id="sync-badge">
+      <div class="sync-dot"></div>
+      <span id="sync-text">מתחבר...</span>
+    </div>
+    <button class="global-add-btn" onclick="openModal(null)">+ משימה חדשה</button>
+    <div class="meta" id="last-updated"></div>
+  </div>
+</header>
+
+<div class="summary-bar">
+  <div class="summary-pill">סה"כ <span id="total-count">-</span></div>
+  <div class="summary-pill">הושלמו <span id="done-count">-</span></div>
+  <div class="summary-pill">בתהליך <span id="inprog-count">-</span></div>
+  <div class="summary-pill">ממתינות <span id="todo-count">-</span></div>
+</div>
+
+<div id="projects"></div>
+<div class="footer">WeRAI Projects · <span id="footer-date"></span></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBiFqCodWFsJaNVMkjaTIq4oKjUhCmDtEY",
+  authDomain: "werai-plan.firebaseapp.com",
+  databaseURL: "https://werai-plan-default-rtdb.firebaseio.com",
+  projectId: "werai-plan",
+  storageBucket: "werai-plan.firebasestorage.app",
+  messagingSenderId: "351838281460",
+  appId: "1:351838281460:web:d3b0c5ea23dc45d9cdc8a1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const planRef = db.ref('plan');
+
+const BASE_PROJECTS = [
+  {
+    id: 'shira', type: 'לקוחה', name: 'שירה בייכלר / Bu',
+    tasks: [
+      { id: 's1', title: 'LinkedIn עסקי - בניית פרופיל', desc: 'תוכן שיווקי, About, Featured, הגדרות SEO, אסטרטגיית פרסום', status: 'next' },
+      { id: 's2', title: 'LinkedIn BIO + שדרוג הגדרות', desc: 'שכתוב Headline, About, Skills, Banner, URL מותאמת אישית', status: 'next' },
+      { id: 's3', title: 'Facebook + Instagram - תוכן עסקי/מקצועי', desc: 'אסטרטגיית תוכן, לוח פרסום, סגנון ויזואלי, כיתובים לפוסטים', status: 'next' },
+      { id: 's4', title: 'גיבוש שם שיטה / מיתוג', desc: 'המשך שיחת מיתוג - "שיטת Bu" או ניסוח עברי חלופי', status: 'todo' },
+    ]
+  },
+  {
+    id: 'liora', type: 'לקוחה', name: 'ליאורה',
+    tasks: [
+      { id: 'l1', title: 'סוכן שיווק - גרסה מקוצרת (כמו יפעת)', desc: 'HTML artifact קומפקטי, מותאם לליאורה, ממשק פשוט', status: 'inprog' },
+      { id: 'l2', title: 'Google Sheets - יועץ עסקי', desc: 'תוכנית מעקב, KPIs, לוח שליטה - מחובר ל-Claude API', status: 'todo' },
+    ]
+  },
+  {
+    id: 'werai', type: 'מותג עצמי', name: 'WeRAI',
+    tasks: [
+      { id: 'w1', title: 'LinkedIn עסקי - פרופיל WeRAI', desc: 'Company Page, About, Tagline, שירותים, תוכן ראשוני', status: 'next' },
+    ]
+  },
+  {
+    id: 'workshop', type: 'מוצר / שירות', name: 'הרצאה IBC',
+    tasks: [
+      { id: 'ws1', title: 'תוכנית הרצאה - IBC', desc: 'הכנת תוכן, מצגת, חומרי הרצאה', status: 'todo' },
+    ]
+  },
+  {
+    id: 'yifat', type: 'לקוחה', name: 'יפעת',
+    tasks: [
+      { id: 'y1', title: 'טסט לייב - סוכן שיווק', desc: 'הרצה מלאה של הסוכן, בדיקת UX, תיקונים, אישור סופי', status: 'inprog' },
+    ]
+  },
+  {
+    id: 'onex1', type: 'פגישות', name: '1X1',
+    tasks: [
+      { id: 'ox1', title: 'פגישת 1X1 - תכנון שוטף', desc: '', status: 'todo' },
+    ]
+  }
+];
+
+const STATUS_LABELS = { todo:'ממתין', next:'הבא בתור', inprog:'בתהליך', review:'לבדיקה', done:'הושלם' };
+
+let remoteState = null;
+let firstLoad = true;
+
+function setSyncStatus(s, t) {
+  document.getElementById('sync-badge').className = 'sync-badge ' + s;
+  document.getElementById('sync-text').textContent = t;
+}
+
+function pushState(patch) {
+  setSyncStatus('syncing', 'שומר...');
+  planRef.set({ ...patch, updatedAt: Date.now() })
+    .then(() => setSyncStatus('connected', 'מסונכרן'))
+    .catch(() => setSyncStatus('error', 'שגיאת שמירה'));
+}
+
+function esc(s) { return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function genId(p) { return p + '_' + Date.now() + '_' + Math.floor(Math.random()*9999); }
+
+function updateSummary() {
+  const all    = document.querySelectorAll('.task');
+  const done   = [...all].filter(t => t.dataset.status==='done').length;
+  const inprog = [...all].filter(t => t.dataset.status==='inprog').length;
+  document.getElementById('total-count').textContent  = all.length;
+  document.getElementById('done-count').textContent   = done;
+  document.getElementById('inprog-count').textContent = inprog;
+  document.getElementById('todo-count').textContent   = all.length - done - inprog;
+  document.querySelectorAll('.section').forEach(sec => {
+    const st = sec.querySelectorAll('.task');
+    const sd = [...st].filter(t => t.dataset.status==='done').length;
+    const pct = st.length ? Math.round(sd/st.length*100) : 0;
+    const fill = sec.querySelector('.progress-fill');
+    const lbl  = sec.querySelector('.progress-label');
+    const bdg  = sec.querySelector('.section-badge');
+    if (fill) fill.style.width = pct + '%';
+    if (lbl)  lbl.textContent  = sd + '/' + st.length;
+    if (bdg)  bdg.textContent  = st.length + ' משימות';
+  });
+}
+
+function updateTimestamp(ts) {
+  if (!ts) return;
+  const d = new Date(ts);
+  document.getElementById('last-updated').textContent =
+    'עודכן: ' + d.toLocaleDateString('he-IL') + ' · ' + d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+}
+
+function applyTaskStatus(el, status, push) {
+  el.dataset.status = status;
+  el.classList.toggle('done', status==='done');
+  el.querySelector('.check-btn').textContent = status==='done' ? '✓' : '';
+  const sel = el.querySelector('.status-select');
+  sel.value = status;
+  sel.className = 'status-select status-' + status;
+  updateSummary();
+  if (push) {
+    const st = remoteState || {};
+    if (!st.taskOverrides) st.taskOverrides = {};
+    st.taskOverrides[el.dataset.id] = { status };
+    pushState(st);
+  }
+}
+
+const OWNER_COLORS = {
+  'אדיר':        { bg:'#E6F1FB', border:'#B5D4F4', text:'#0C447C' },
+  'אילנה':       { bg:'#E1F5EE', border:'#9FE1CB', text:'#085041' },
+  'מפתח אמיר':  { bg:'#FAEEDA', border:'#FAC775', text:'#854F0B' },
+};
+
+function ownerInitials(name) {
+  if (!name) return '+';
+  const parts = name.trim().split(' ');
+  return parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0,2);
+}
+
+function buildOwnerCol(t, projId) {
+  const owner = t.owner || '';
+  const col = document.createElement('div');
+  col.className = 'owner-col';
+
+  const av = document.createElement('div');
+  const colors = OWNER_COLORS[owner];
+  if (owner && colors) {
+    av.className = 'owner-avatar';
+    av.style.background = colors.bg;
+    av.style.borderColor = colors.border;
+    av.style.color = colors.text;
+    av.textContent = ownerInitials(owner);
+    av.title = owner;
+  } else if (owner) {
+    av.className = 'owner-avatar';
+    av.style.background = '#F2F1EC';
+    av.style.borderColor = '#C8C6BE';
+    av.style.color = '#7A7872';
+    av.textContent = ownerInitials(owner);
+    av.title = owner;
+  } else {
+    av.className = 'owner-avatar empty';
+    av.textContent = '+';
+    av.title = 'הוסף אחראי';
+  }
+
+  av.onclick = e => {
+    e.stopPropagation();
+    const names = ['', 'אדיר', 'אילנה', 'מפתח אמיר'];
+    const cur = names.indexOf(owner);
+    const next = names[(cur + 1) % names.length];
+    // update in remoteState
+    const st = remoteState || {};
+    if (!st.taskOverrides) st.taskOverrides = {};
+    if (!st.taskOverrides[t.id]) st.taskOverrides[t.id] = {};
+    st.taskOverrides[t.id].owner = next;
+    t.owner = next;
+    pushState(st);
+    // rebuild col in place
+    const newCol = buildOwnerCol({...t, owner: next}, projId);
+    col.replaceWith(newCol);
+  };
+
+  const lbl = document.createElement('div');
+  lbl.className = 'owner-name';
+  lbl.textContent = owner || '';
+
+  col.appendChild(av);
+  col.appendChild(lbl);
+  return col;
+}
+
+function buildTaskEl(t, projId) {
+  const status = t.status || 'todo';
+  const div = document.createElement('div');
+  div.className = 'task' + (status==='done' ? ' done' : '');
+  div.dataset.id = t.id; div.dataset.status = status; div.dataset.proj = projId;
+
+  const btn = document.createElement('button');
+  btn.className = 'check-btn'; btn.title = 'סמן כהושלם';
+  btn.textContent = status==='done' ? '✓' : '';
+  btn.onclick = () => applyTaskStatus(div, div.dataset.status==='done' ? 'todo' : 'done', true);
+
+  const body = document.createElement('div');
+  body.className = 'task-body';
+  body.innerHTML = '<div class="task-title">' + esc(t.title) + '</div>' +
+    (t.desc ? '<div class="task-desc">' + esc(t.desc) + '</div>' : '');
+
+  const ownerCol = buildOwnerCol(t, projId);
+
+  const sel = document.createElement('select');
+  sel.className = 'status-select status-' + status;
+  Object.entries(STATUS_LABELS).forEach(([v,l]) => {
+    const o = document.createElement('option');
+    o.value=v; o.textContent=l; if(v===status) o.selected=true; sel.appendChild(o);
+  });
+  sel.onchange = () => applyTaskStatus(div, sel.value, true);
+
+  const del = document.createElement('button');
+  del.className = 'delete-btn'; del.title = 'מחק'; del.textContent = '×';
+  del.onclick = e => {
+    e.stopPropagation();
+    if (!confirm('למחוק את המשימה "' + t.title + '"?')) return;
+    div.remove(); updateSummary();
+    const st = remoteState || {};
+    if (!st.deletedIds) st.deletedIds = [];
+    if (!st.deletedIds.includes(t.id)) st.deletedIds.push(t.id);
+    if (st.extraTasks && st.extraTasks[projId])
+      st.extraTasks[projId] = st.extraTasks[projId].filter(x => x.id !== t.id);
+    pushState(st);
+  };
+
+  div.appendChild(btn); div.appendChild(body); div.appendChild(ownerCol); div.appendChild(sel); div.appendChild(del);
+  return div;
+}
+
+function buildSection(proj, state) {
+  const collapsed = !!(state.collapsed && state.collapsed['sec-'+proj.id]);
+  const sec = document.createElement('div');
+  sec.className = 'section ' + proj.id + (collapsed ? ' collapsed' : '');
+  sec.id = 'sec-' + proj.id;
+
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `
+    <div class="color-dot"></div>
+    <div class="section-meta">
+      <div class="client-type">${proj.type}</div>
+      <div class="client-name">${proj.name}</div>
+    </div>
+    <div class="progress-mini">
+      <div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>
+      <span class="progress-label">-</span>
+    </div>
+    <div class="section-badge">-</div>
+    <div class="toggle-icon">▾</div>`;
+  header.onclick = () => {
+    sec.classList.toggle('collapsed');
+    const st = remoteState || {};
+    if (!st.collapsed) st.collapsed = {};
+    st.collapsed['sec-'+proj.id] = sec.classList.contains('collapsed');
+    pushState(st);
+  };
+
+  const list = document.createElement('div');
+  list.className = 'tasks-list';
+
+  const deletedIds = state.deletedIds || [];
+  const overrides  = state.taskOverrides || {};
+  const extras     = (state.extraTasks && state.extraTasks[proj.id]) || [];
+
+  proj.tasks.forEach(t => {
+    if (deletedIds.includes(t.id)) return;
+    list.appendChild(buildTaskEl({...t,...(overrides[t.id]||{})}, proj.id));
+  });
+  extras.forEach(t => {
+    if (deletedIds.includes(t.id)) return;
+    list.appendChild(buildTaskEl({...t,...(overrides[t.id]||{})}, proj.id));
+  });
+
+  const addRow = document.createElement('div');
+  addRow.className = 'add-task-row';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-task-btn';
+  addBtn.innerHTML = '<div class="add-task-plus">+</div> הוסף משימה לפרויקט זה';
+  addBtn.onclick = e => { e.stopPropagation(); openModal(proj.id); };
+  addRow.appendChild(addBtn);
+
+  sec.appendChild(header); sec.appendChild(list); sec.appendChild(addRow);
+  return sec;
+}
+
+function renderAll(state) {
+  const c = document.getElementById('projects');
+  c.innerHTML = '';
+  BASE_PROJECTS.forEach(p => c.appendChild(buildSection(p, state)));
+  updateSummary(); updateTimestamp(state.updatedAt);
+  document.getElementById('footer-date').textContent =
+    new Date().toLocaleDateString('he-IL',{year:'numeric',month:'long'});
+}
+
+function applyRemotePatch(newState) {
+  const overrides  = newState.taskOverrides || {};
+  const deletedIds = newState.deletedIds || [];
+
+  document.querySelectorAll('.task').forEach(el => {
+    if (deletedIds.includes(el.dataset.id)) { el.remove(); return; }
+    const ov = overrides[el.dataset.id];
+    if (ov && ov.status !== el.dataset.status) {
+      applyTaskStatus(el, ov.status, false);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 900);
+    }
+    if (ov && ov.owner !== undefined) {
+      const existingCol = el.querySelector('.owner-col');
+      if (existingCol) {
+        const projId = el.dataset.proj;
+        const tid = el.dataset.id;
+        // find base task data
+        let tData = { id: tid, owner: ov.owner };
+        const newCol = buildOwnerCol(tData, projId);
+        existingCol.replaceWith(newCol);
+      }
+    }
+  });
+
+  BASE_PROJECTS.forEach(proj => {
+    const extras = (newState.extraTasks && newState.extraTasks[proj.id]) || [];
+    const list   = document.querySelector('#sec-'+proj.id+' .tasks-list');
+    if (!list) return;
+    extras.forEach(t => {
+      if (deletedIds.includes(t.id)) return;
+      if (list.querySelector('[data-id="'+t.id+'"]')) return;
+      const el = buildTaskEl({...t,...(overrides[t.id]||{})}, proj.id);
+      list.appendChild(el);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 900);
+    });
+  });
+
+  const collapsed = newState.collapsed || {};
+  Object.entries(collapsed).forEach(([id, c]) => {
+    const sec = document.getElementById(id);
+    if (sec) sec.classList.toggle('collapsed', c);
+  });
+
+  updateSummary(); updateTimestamp(newState.updatedAt);
+}
+
+// ── modal ──────────────────────────────────────────────────
+function openModal(projId) {
+  const sel = document.getElementById('modal-project');
+  sel.innerHTML = '';
+  BASE_PROJECTS.forEach(p => {
+    const o = document.createElement('option');
+    o.value=p.id; o.textContent=p.name; if(p.id===projId) o.selected=true; sel.appendChild(o);
+  });
+  document.getElementById('modal-title').value = '';
+  document.getElementById('modal-desc').value  = '';
+  document.getElementById('modal-owner').value = '';
+  document.getElementById('modal-status').value = 'next';
+  document.getElementById('global-modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-title').focus(), 80);
+}
+
+function closeModal() { document.getElementById('global-modal').classList.remove('open'); }
+
+function saveFromModal() {
+  const projId = document.getElementById('modal-project').value;
+  const title  = document.getElementById('modal-title').value.trim();
+  const desc   = document.getElementById('modal-desc').value.trim();
+  const status = document.getElementById('modal-status').value;
+  if (!title) { document.getElementById('modal-title').focus(); return; }
+
+  const owner  = document.getElementById('modal-owner').value;
+  const newTask = { id: genId(projId), title, desc, status, owner };
+  const st = remoteState || {};
+  if (!st.extraTasks) st.extraTasks = {};
+  if (!st.extraTasks[projId]) st.extraTasks[projId] = [];
+  st.extraTasks[projId].push(newTask);
+  closeModal();
+  pushState(st);
+
+  const list = document.querySelector('#sec-'+projId+' .tasks-list');
+  if (list && !list.querySelector('[data-id="'+newTask.id+'"]')) {
+    list.appendChild(buildTaskEl(newTask, projId));
+    updateSummary();
+  }
+  const sec = document.getElementById('sec-'+projId);
+  if (sec && sec.classList.contains('collapsed')) sec.classList.remove('collapsed');
+}
+
+document.getElementById('global-modal').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') closeModal();
+  if (e.key==='Enter' && document.getElementById('global-modal').classList.contains('open'))
+    if (document.activeElement.tagName !== 'TEXTAREA') saveFromModal();
+});
+
+// ── Firebase listener ──────────────────────────────────────
+planRef.on('value', snapshot => {
+  let data = snapshot.val();
+
+  if (!data) {
+    planRef.set({ taskOverrides:{}, extraTasks:{}, deletedIds:[], collapsed:{}, updatedAt: Date.now() });
+    return;
+  }
+
+  // normalize Firebase arrays
+  data.deletedIds = Array.isArray(data.deletedIds) ? data.deletedIds
+    : data.deletedIds ? Object.values(data.deletedIds) : [];
+  if (data.extraTasks) {
+    Object.keys(data.extraTasks).forEach(pid => {
+      const et = data.extraTasks[pid];
+      if (et && !Array.isArray(et)) data.extraTasks[pid] = Object.values(et);
+    });
+  }
+
+  const prev = remoteState;
+  remoteState = data;
+
+  if (firstLoad) {
+    firstLoad = false;
+    renderAll(data);
+    setSyncStatus('connected', 'מסונכרן');
+    document.getElementById('loading').classList.add('hidden');
+  } else {
+    applyRemotePatch(data);
+    setSyncStatus('connected', 'מסונכרן');
+  }
+}, err => {
+  setSyncStatus('error', 'אין חיבור');
+  document.getElementById('loading').classList.add('hidden');
+});
+
+db.ref('.info/connected').on('value', snap => {
+  if (!firstLoad) setSyncStatus(snap.val() ? 'connected' : 'error', snap.val() ? 'מסונכרן' : 'מנותק');
+});
+</script>
+</body>
+</html>

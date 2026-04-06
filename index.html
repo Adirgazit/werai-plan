@@ -759,33 +759,34 @@ function setFilter(val) {
   applyFilter();
 }
  
+function getTaskOwner(task) {
+  const lbl = task.querySelector('.owner-name');
+  return lbl ? lbl.textContent.trim() : '';
+}
+ 
+function taskMatchesFilter(task, filter) {
+  if (filter === 'all') return true;
+  const owner = getTaskOwner(task);
+  if (filter === 'none') return owner === '';
+  return owner === filter;
+}
+ 
 function applyFilter() {
   document.querySelectorAll('.task').forEach(task => {
-    if (activeFilter === 'all') {
-      task.classList.remove('hidden-by-filter');
-      return;
-    }
-    const col = task.querySelector('.owner-col');
-    const lbl = col ? col.querySelector('.owner-name') : null;
-    const owner = lbl ? lbl.textContent.trim() : '';
-    if (activeFilter === 'none') {
-      task.classList.toggle('hidden-by-filter', owner !== '');
-    } else {
-      task.classList.toggle('hidden-by-filter', owner !== activeFilter);
-    }
+    task.classList.toggle('hidden-by-filter', !taskMatchesFilter(task, activeFilter));
   });
  
   document.querySelectorAll('.section').forEach(sec => {
-    const all = sec.querySelectorAll('.task');
-    const visible = [...all].filter(t => !t.classList.contains('hidden-by-filter'));
+    const all = [...sec.querySelectorAll('.task')];
     const badge = sec.querySelector('.section-badge');
-    // hide entire section if no visible tasks (when filtering)
-    if (activeFilter !== 'all') {
-      sec.style.display = visible.length === 0 ? 'none' : '';
-      if (badge) badge.textContent = visible.length + '/' + all.length + ' משימות';
-    } else {
+    if (activeFilter === 'all') {
       sec.style.display = '';
       if (badge) badge.textContent = all.length + ' משימות';
+    } else {
+      // count tasks that match filter regardless of collapse state
+      const matching = all.filter(t => taskMatchesFilter(t, activeFilter));
+      sec.style.display = matching.length === 0 ? 'none' : '';
+      if (badge) badge.textContent = matching.length + '/' + all.length + ' משימות';
     }
   });
 }

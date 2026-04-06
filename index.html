@@ -230,6 +230,23 @@
  
   .footer { margin-top: 2rem; text-align: center; font-size: 12px; color: var(--muted); }
  
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+  .filter-label { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+  .filter-btn {
+    font-size: 12px; padding: 5px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+    cursor: pointer; font-family: 'Heebo', sans-serif; transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: #B0AEA8; color: var(--text); }
+  .filter-btn.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .filter-btn.f-adir   { }
+  .filter-btn.f-adir.active   { background: #0C447C; border-color: #0C447C; }
+  .filter-btn.f-ilana.active  { background: #085041; border-color: #085041; }
+  .filter-btn.f-amir.active   { background: #854F0B; border-color: #854F0B; }
+  .filter-btn.f-none.active   { background: #5F5E5A; border-color: #5F5E5A; }
+ 
+  .task.hidden-by-filter { display: none; }
+ 
   #loading {
     position: fixed; inset: 0; background: var(--bg);
     display: flex; flex-direction: column;
@@ -318,6 +335,15 @@
   <div class="summary-pill">הושלמו <span id="done-count">-</span></div>
   <div class="summary-pill">בתהליך <span id="inprog-count">-</span></div>
   <div class="summary-pill">ממתינות <span id="todo-count">-</span></div>
+</div>
+ 
+<div class="filter-bar" id="filter-bar">
+  <span class="filter-label">סנן לפי אחראי:</span>
+  <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">הכל</button>
+  <button class="filter-btn f-adir" data-filter="אדיר" onclick="setFilter('אדיר')">אדיר</button>
+  <button class="filter-btn f-ilana" data-filter="אילנה" onclick="setFilter('אילנה')">אילנה</button>
+  <button class="filter-btn f-amir" data-filter="מפתח אמיר" onclick="setFilter('מפתח אמיר')">מפתח אמיר</button>
+  <button class="filter-btn f-none" data-filter="none" onclick="setFilter('none')">ללא אחראי</button>
 </div>
  
 <div id="projects"></div>
@@ -617,6 +643,7 @@ function renderAll(state) {
   c.innerHTML = '';
   BASE_PROJECTS.forEach(p => c.appendChild(buildSection(p, state)));
   updateSummary(); updateTimestamp(state.updatedAt);
+  applyFilter();
   document.getElementById('footer-date').textContent =
     new Date().toLocaleDateString('he-IL',{year:'numeric',month:'long'});
 }
@@ -667,6 +694,7 @@ function applyRemotePatch(newState) {
   });
  
   updateSummary(); updateTimestamp(newState.updatedAt);
+  applyFilter();
 }
  
 // ── modal ──────────────────────────────────────────────────
@@ -718,6 +746,47 @@ document.addEventListener('keydown', e => {
   if (e.key==='Enter' && document.getElementById('global-modal').classList.contains('open'))
     if (document.activeElement.tagName !== 'TEXTAREA') saveFromModal();
 });
+ 
+// ── filter ────────────────────────────────────────────────────
+let activeFilter = 'all';
+ 
+function setFilter(val) {
+  activeFilter = val;
+  // update buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === val);
+  });
+  applyFilter();
+}
+ 
+function applyFilter() {
+  document.querySelectorAll('.task').forEach(task => {
+    if (activeFilter === 'all') {
+      task.classList.remove('hidden-by-filter');
+      return;
+    }
+    const col = task.querySelector('.owner-col');
+    const lbl = col ? col.querySelector('.owner-name') : null;
+    const owner = lbl ? lbl.textContent.trim() : '';
+    if (activeFilter === 'none') {
+      task.classList.toggle('hidden-by-filter', owner !== '');
+    } else {
+      task.classList.toggle('hidden-by-filter', owner !== activeFilter);
+    }
+  });
+ 
+  // show/hide empty section indicators
+  document.querySelectorAll('.section').forEach(sec => {
+    const all = sec.querySelectorAll('.task');
+    const visible = [...all].filter(t => !t.classList.contains('hidden-by-filter'));
+    const badge = sec.querySelector('.section-badge');
+    if (badge && activeFilter !== 'all') {
+      badge.textContent = visible.length + '/' + all.length + ' משימות';
+    } else if (badge) {
+      badge.textContent = all.length + ' משימות';
+    }
+  });
+}
  
 // ── Firebase listener ──────────────────────────────────────
 planRef.on('value', snapshot => {

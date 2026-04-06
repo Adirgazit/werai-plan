@@ -775,15 +775,17 @@ function applyFilter() {
     }
   });
  
-  // show/hide empty section indicators
   document.querySelectorAll('.section').forEach(sec => {
     const all = sec.querySelectorAll('.task');
     const visible = [...all].filter(t => !t.classList.contains('hidden-by-filter'));
     const badge = sec.querySelector('.section-badge');
-    if (badge && activeFilter !== 'all') {
-      badge.textContent = visible.length + '/' + all.length + ' משימות';
-    } else if (badge) {
-      badge.textContent = all.length + ' משימות';
+    // hide entire section if no visible tasks (when filtering)
+    if (activeFilter !== 'all') {
+      sec.style.display = visible.length === 0 ? 'none' : '';
+      if (badge) badge.textContent = visible.length + '/' + all.length + ' משימות';
+    } else {
+      sec.style.display = '';
+      if (badge) badge.textContent = all.length + ' משימות';
     }
   });
 }
@@ -848,3 +850,4 @@ document.getElementById('pw-input').addEventListener('keydown', e => {
 </script>
 </body>
 </html>
+ 
